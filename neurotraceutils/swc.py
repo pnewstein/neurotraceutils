@@ -1,16 +1,12 @@
 """
 contains code that extracts swc files from imaris files
 """
-from typing import Optional
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
 from imaris_ims_file_reader.ims import ims
 
-
-import matplotlib
-matplotlib.use("QtAgg")
-import matplotlib.pyplot as plt
 
 class IllegalFilementError(Exception):
     pass
@@ -23,6 +19,11 @@ def extract_swcs(img: ims) -> dict[str, pd.DataFrame]:
     the columns of the dataframe are:
         "Number", "Identifier", "PositionX", "PositionY", "PositionZ", "Radius", "Parent"
     """
+    scale = img.metaData[(0, 0, 0, 'resolution')]
+    """the scale of the image in (z, y, x)"""
+    if scale[1] != scale[2]:
+        # I'm not entirely sure which is y and which is x
+        raise ValueError("Only voxels that are square in the xy dimention are currently supported")
     filement_paths = [f"Scene8/Content/{key}" for key in img.hf["Scene8"]["Content"].keys() if "Filament" in key]
     names = [img.read_attribute(fp, "Name") for fp in filement_paths]
     out = {n: None for n in names}
@@ -30,118 +31,86 @@ def extract_swcs(img: ims) -> dict[str, pd.DataFrame]:
         filement = img.hf[filement_path]
         vertex = pd.DataFrame(np.array(filement["Vertex"]))
         edge = pd.DataFrame(np.array(filement["Edge"]))
-        branch_points = map_branch_points(edge)
-        segments = get_segments(branch_points, vertex.shape[0])
-        parents = assign_parents(vertex.shape[0], branch_points, segments)
-        # parents = assign_parents(edge["VertexA"], edge["VertexB"], vertex.shape[0], branches)
+        parents = assign_parents(vertex.shape[0], edge)
         swc = vertex.copy()
+        # scale the swc
+        swc["PositionZ"] /= scale[0]
+        swc["PositionY"] /= scale[1]
+        swc["PositionX"] /= scale[2]
         swc.insert(len(swc.columns), "Parent", parents)
         # I cant extract information about identifers
         swc.insert(0, "Identifier", np.zeros(len(swc.index), np.int8))
         swc.insert(0, "Number", np.array(swc.index))
         out[name] = swc
-        plt.plot(swc["Parent"])
-        plt.show()
     return out
 
 
-def map_branch_points(edge: pd.DataFrame) -> list[set[int]]:
-    """
-    Finds the points where there is discontinuous connections
-    returns a list of all of the partners of that discontinous contact
-    """
-    discontinous = edge["VertexB"] - edge["VertexA"] != 1
-    branchpoint_pairs = np.vstack((edge["VertexA"][discontinous], edge["VertexB"][discontinous])).T
-    out: list[set[int]] = []
-    for branchpoint_pair in branchpoint_pairs:
-        branch_sorted = False
-        for branch in out:
-            if any(b in branch for b in branchpoint_pair):
-                # add current branch pair to the branch in which it fits branch = branch.union(set(branchpoint_pair)) branch_sorted = True
-                break
-        if not branch_sorted:
-            # add to a new branch
-            out.append(set(branchpoint_pair))
-    return out
+@dataclass
+class Branch:
+    first_node: int
+    parent_node: int
 
-def get_segments(branch_points: list[set[int]], nvertex: int) -> np.ndarray:
-    """
-    gets the coninuous segments from the branch points
-    returns an array like this
-        [[start end]
-         [start end]
-         [start end]]
-    """
-    # get all of the indecies involved in branges
-    flat_branch_points = sorted(list(set().union(*branch_points)))
-    # shape it into a numpy array where the same vertex that ends a segment starts the next segment
-    flat_repeated_branch_points =  sorted(flat_branch_points + flat_branch_points[1:] + [nvertex])
-    return np.array(flat_repeated_branch_points).reshape((len(flat_repeated_branch_points) // 2, 2))
-    
+    def to_tuple(self) -> tuple:
+        """
+        (first_node, parent_node)
+        """
+        return self.first_node, self.parent_node
 
-def assign_parents(nchildren: int, branch_points: list[set[int]], segments: np.ndarray) -> np.ndarray:
+
+def assign_parents(nchildren: int, edge: pd.DataFrame) -> np.ndarray:
     """
-    Assigns the parent for each vertex based on the vertex a and vertex b
+    Assigns the parent for each vertex based on the edges
     from the edges in the imaris file returns the parents column which is compatable
     with swc files
     nchildren is the number of children
     """
-    print(segments)
-    quit()
-    parents = np.arange(nchildren) - 1
-    grounded_edge_indecies = update_grounded_edges({0}, branch_points)
-    ungrounded_segments = list(range(len(segments)))
-    last_len_ungrounded_branches: Optional[int] = None
-    # Find a grounded segment. Update grounded_edge_indecies. remove that segment from ungrounded_segments
-    # define the parentage relationship
-    while len(ungrounded_segments) != 0:
-        if last_len_ungrounded_branches is not None:
-            # we just looped through all of the ungrounded_segments and found nothing grounded
-            if last_len_ungrounded_branches == len(ungrounded_segments):
-                raise IllegalFilementError("Some filements are disconnected")
-        for ungrounded_segment_ind, segment in enumerate(segments[ungrounded_segments]):
-            last_len_ungrounded_branches = len(ungrounded_segments)
-            if any(terminus in grounded_edge_indecies for terminus in segment):
-                # define parentage
-                if 0 not in segment:
-                    for terminus in segment:
-                        if terminus in grounded_edge_indecies:
-                            for branch in branch_points:
-                                if terminus in branch:
-                                    if 
-                grounded_edge_indecies.union(set(segment))
-                grounded_edge_indecies = update_grounded_edges(grounded_edge_indecies, branch_points)
-                ungrounded_segments.pop(ungrounded_segment_ind)
+    connectivity_matrix = make_connectivity_matrix(nchildren, edge)
+    # traverse through the filement going down every branch
+    parents = np.zeros(nchildren, np.int64) - 2
+    """The output of this function"""
+    visited = np.zeros(nchildren, np.bool8)
+    """whether each node has been visited"""
+    unexplored = [Branch(0, -1)]
+    """The unexplored branches. will increase and decrease in size during the loop"""
+    while unexplored:
+        # open an unexplored branch
+        current, parent = unexplored.pop().to_tuple()
+        # explore this branch
+        while True:
+            parents[current] = parent
+            visited[current] = True
+            next_points = [node for node in search_partners(connectivity_matrix, current) if not visited[node]]
+            if len(next_points) == 0:
+                # you finished exploring this branch
                 break
-                
+            if len(next_points) > 1:
+                # you found a branch point! add to unexplored for now
+                for next_branch in next_points[1:]:
+                    unexplored.append(Branch(next_branch, current))
+            # move to the next point on this branch
+            current, parent = current+1, current
+    # check for errors
+    if np.any(np.logical_not(visited)):
+        raise IllegalFilementError("Discontinuous filement")
+    if np.any(parents == -2):
+        raise IllegalFilementError("Did not explore some nodes")
+    return parents
 
-def update_grounded_edges(grounded_edge_indecies: set[int], branch_points: list[set[int]]) -> set[int]:
+
+def make_connectivity_matrix(nchildren: int, edge: pd.DataFrame) -> np.ndarray:
     """
-    uses branch point to make sure that all indecies involved in a branch are equaly grounded
+    Makes a matrix of which vertex is connected to each vertex
     """
-    indecies_to_add: set[int] = set()
-    for branch in branch_points:
-        for grounded_edge_index in grounded_edge_indecies:
-            if grounded_edge_index in branch:
-                indecies_to_add.union(branch)
-    grounded_edge_indecies.union(indecies_to_add)
-    return grounded_edge_indecies
+    # maybe this can be implemented in c
+    connectivity_matrix = np.zeros((nchildren, nchildren), np.bool8)
+    for _, (node1, node2) in edge.iterrows():
+        connectivity_matrix[node1, node2] = True
+        connectivity_matrix[node2, node1] = True
+    return connectivity_matrix
 
 
-# def assign_parents(va: np.ndarray, vb: np.ndarray, nchildren: int) -> np.ndarray:
-    # """
-    # Assigns the parent for each vertex based on the vertex a and vertex b
-    # from the edges in the imaris file returns the parents column which is compatable
-    # with swc files
-    # nchildren is the number of children
-    # """
-    # # start off with negitive 1s
-    # parents = np.zeros(nchildren) - 1
-    # for child, _ in enumerate(parents):
-        # if child == 0:
-            # continue
-        # edge_index = np.nonzero(np.array(vb == child))[0]
-        # if edge_index.size != 1:
-            # raise IllegalFilementError(f"node {child} has {len(edge_index)} parents")
-        # parents[child] = va[edge_index[0]]
-    # return parents
+def search_partners(connectivity_matrix: np.ndarray, node: int) -> list[int]:
+    """
+    Finds all of the partners of a node
+    """
+    return list(np.where(connectivity_matrix[node])[0])
