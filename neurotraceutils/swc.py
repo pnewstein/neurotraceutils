@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 from imaris_ims_file_reader.ims import ims
-
+from warnings import warn
 
 class IllegalFilementError(Exception):
     pass
@@ -31,7 +31,11 @@ def extract_swcs(img: ims) -> dict[str, pd.DataFrame]:
         filement = img.hf[filement_path]
         vertex = pd.DataFrame(np.array(filement["Vertex"]))
         edge = pd.DataFrame(np.array(filement["Edge"]))
-        parents = assign_parents(vertex.shape[0], edge)
+        try:
+            parents = assign_parents(vertex.shape[0], edge)
+        except IllegalFilementError as e:
+            warn(f'"{name}" failed with error message "{e}"')
+            continue
         swc = vertex.copy()
         # scale the swc
         swc["PositionZ"] /= scale[0]
@@ -88,7 +92,7 @@ def assign_parents(nchildren: int, edge: pd.DataFrame) -> np.ndarray:
                 for next_branch in next_points[1:]:
                     unexplored.append(Branch(next_branch, current))
             # move to the next point on this branch
-            current, parent = current+1, current
+            current, parent = next_points[0], current
     # check for errors
     if np.any(np.logical_not(visited)):
         raise IllegalFilementError("Discontinuous filement")
