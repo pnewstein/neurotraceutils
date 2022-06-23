@@ -2,11 +2,11 @@
 contains code that extracts swc files from imaris files
 """
 from dataclasses import dataclass
+from warnings import warn
 
 import numpy as np
 import pandas as pd
 from imaris_ims_file_reader.ims import ims
-from warnings import warn
 
 class IllegalFilementError(Exception):
     pass
@@ -44,7 +44,7 @@ def extract_swcs(img: ims) -> dict[str, pd.DataFrame]:
         swc.insert(len(swc.columns), "Parent", parents)
         # I cant extract information about identifers
         swc.insert(0, "Identifier", np.zeros(len(swc.index), np.int8))
-        swc.insert(0, "Number", np.array(swc.index))
+        swc.insert(0, "Number", np.array(swc.index+1))
         out[name] = swc
     return out
 
@@ -74,14 +74,14 @@ def assign_parents(nchildren: int, edge: pd.DataFrame) -> np.ndarray:
     """The output of this function"""
     visited = np.zeros(nchildren, np.bool8)
     """whether each node has been visited"""
-    unexplored = [Branch(0, -1)]
+    unexplored = [Branch(1, -1)]
     """The unexplored branches. will increase and decrease in size during the loop"""
     while unexplored:
         # open an unexplored branch
         current, parent = unexplored.pop().to_tuple()
         # explore this branch
         while True:
-            parents[current] = parent
+            parents[current-1] = parent
             visited[current] = True
             next_points = [node for node in search_partners(connectivity_matrix, current) if not visited[node]]
             if len(next_points) == 0:
