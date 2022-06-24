@@ -17,8 +17,9 @@ def extract_swcs(img: ims) -> dict[str, pd.DataFrame]:
     """
     extracts all of the filiments in an image to a dataframe in the swc format
     outputs a dict where the keys are the names of the filiments and the values are the dataframes
+    The index is the node number
     the columns of the dataframe are:
-        "Number", "Identifier", "PositionX", "PositionY", "PositionZ", "Radius", "Parent"
+        "Identifier", "PositionX", "PositionY", "PositionZ", "Radius", "Parent"
     """
     scale = img.metaData[(0, 0, 0, 'resolution')]
     """the scale of the image in (z, y, x)"""
@@ -32,6 +33,9 @@ def extract_swcs(img: ims) -> dict[str, pd.DataFrame]:
         filement = img.hf[filement_path]
         vertex = pd.DataFrame(np.array(filement["Vertex"]))
         edge = pd.DataFrame(np.array(filement["Edge"]))
+        # switch to 1 based indexing
+        vertex.index = vertex.index + 1
+        edge = edge+1
         try:
             parents = assign_parents(vertex.shape[0], edge)
         except IllegalFilementError as e:
@@ -45,7 +49,7 @@ def extract_swcs(img: ims) -> dict[str, pd.DataFrame]:
         swc.insert(len(swc.columns), "Parent", parents)
         # I cant extract information about identifers
         swc.insert(0, "Identifier", np.zeros(len(swc.index), np.int8))
-        swc.insert(0, "Number", np.array(swc.index+1))
+        
         out[name] = swc
     return out
 
@@ -62,18 +66,19 @@ class Branch:
         return self.first_node, self.parent_node
 
 
-def assign_parents(nchildren: int, edge: pd.DataFrame) -> np.ndarray:
+def assign_parents(nchildren: int, edge: pd.DataFrame) -> pd.Series:
     """
     Assigns the parent for each vertex based on the edges
     from the edges in the imaris file returns the parents column which is compatable
     with swc files
     nchildren is the number of children
     """
+    INT_NAN = -2
     connectivity_matrix = make_connectivity_matrix(nchildren, edge)
     # traverse through the filement going down every branch
-    parents = np.zeros(nchildren, np.int64) - 2
-    """The output of this function"""
-    visited = np.zeros(nchildren, np.bool8)
+    parents = pd.Series(data=np.array(nchildren, np.int64) + INT_NAN, index=range(1, nchildren+1))
+    """The output of this function, default is -2"""
+    visited = pd.Series(data=np.zeros(nchildren, np.bool8), index=range(1, nchildren+1))
     """whether each node has been visited"""
     unexplored = [Branch(1, -1)]
     """The unexplored branches. will increase and decrease in size during the loop"""
@@ -82,7 +87,7 @@ def assign_parents(nchildren: int, edge: pd.DataFrame) -> np.ndarray:
         current, parent = unexplored.pop().to_tuple()
         # explore this branch
         while True:
-            parents[current-1] = parent
+            parents[current] = parent
             visited[current] = True
             next_points = [node for node in search_partners(connectivity_matrix, current) if not visited[node]]
             if len(next_points) == 0:
@@ -97,7 +102,7 @@ def assign_parents(nchildren: int, edge: pd.DataFrame) -> np.ndarray:
     # check for errors
     if np.any(np.logical_not(visited)):
         raise IllegalFilementError("Discontinuous filement")
-    if np.any(parents == -2):
+    if np.any(parents == INT_NAN):
         raise IllegalFilementError("Did not explore some nodes")
     return parents
 
@@ -105,9 +110,10 @@ def assign_parents(nchildren: int, edge: pd.DataFrame) -> np.ndarray:
 def make_connectivity_matrix(nchildren: int, edge: pd.DataFrame) -> np.ndarray:
     """
     Makes a matrix of which vertex is connected to each vertex
+    uses 1 based indexing
     """
     # maybe this can be implemented in c
-    connectivity_matrix = np.zeros((nchildren, nchildren), np.bool8)
+    connectivity_matrix = np.zeros((nchildren+1, nchildren+1), np.bool8)
     for _, (node1, node2) in edge.iterrows():
         connectivity_matrix[node1, node2] = True
         connectivity_matrix[node2, node1] = True

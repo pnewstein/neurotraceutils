@@ -23,5 +23,5 @@ def write_swcs(img: ims, out_dir: Optional[Path] = None):
             # This swc failed to be created
             continue
         (out_dir / name).with_suffix(".swc").write_text(
-            swc.to_csv(sep=" ", header=False, index=False), encoding="utf-8"
+            swc.to_csv(sep=" ", header=False, index=True), encoding="utf-8"
         )
