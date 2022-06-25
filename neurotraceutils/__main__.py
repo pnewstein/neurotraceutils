@@ -24,6 +24,6 @@ def ims2swc(output_dir, ims_file):
         click.echo("Error: no ims files specified", err=True)
 
     for file in ims_file:
-        write_swcs(ims(Path(file)))
+        write_swcs(ims(Path(file)), out_dir=Path(output_dir))
 
 cli()
