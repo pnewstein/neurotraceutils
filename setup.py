@@ -18,5 +18,5 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     python_requires='>=3.8',
-    install_requires=["imaris_ims_file_reader", "pandas"]
+    install_requires=["imaris_ims_file_reader", "pandas", "click"]
 )
