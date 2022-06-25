@@ -23,11 +23,22 @@ def extract_swcs(img: ims) -> dict[str, pd.DataFrame]:
     the columns of the dataframe are:
         "Identifier", "PositionX", "PositionY", "PositionZ", "Radius", "Parent"
     """
-    scale = img.metaData[(0, 0, 0, 'resolution')]
-    """the scale of the image in (z, y, x)"""
-    if scale[1] != scale[2]:
-        # I'm not entirely sure which is y and which is x
-        raise ValueError("Only voxels that are square in the xy dimention are currently supported")
+    # get scale from zeiss metadata
+    z = img.hf["DataSetInfo/ZeissAttrs"]
+    scale: dict[str, float] = {}
+    for i, _ in enumerate("xyz"):
+        scale[
+            z.attrs[f"ImageDocument/Metadata/Scaling/Items/Distance{i}/Id"]
+            .tobytes()
+            .decode("utf-8")
+        ] = (
+            float(
+                z.attrs[f"ImageDocument/Metadata/Scaling/Items/Distance{i}/Value"]
+                .tobytes()
+                .decode("utf-8")
+            )
+            / 1e-6
+        )
     try:
         filement_paths = [f"Scene8/Content/{key}" for key in img.hf["Scene8"]["Content"].keys() if "Filament" in key]
     except KeyError as e:
@@ -48,9 +59,9 @@ def extract_swcs(img: ims) -> dict[str, pd.DataFrame]:
             continue
         swc = vertex.copy()
         # scale the swc
-        swc["PositionZ"] /= scale[0]
-        swc["PositionY"] /= scale[1]
-        swc["PositionX"] /= scale[2]
+        swc["PositionZ"] /= scale['Z']
+        swc["PositionY"] /= scale['Y']
+        swc["PositionX"] /= scale['X']
         swc.insert(len(swc.columns), "Parent", parents)
         # I cant extract information about identifers
         swc.insert(0, "Identifier", np.zeros(len(swc.index), np.int8))
