@@ -5,10 +5,11 @@ do the proper output
 """
 from pathlib import Path
 from typing import Optional
+from warnings import warn
 
 from imaris_ims_file_reader.ims import ims
 
-from .swc import extract_swcs
+from .swc import extract_swcs, NoFilementError
 
 def write_swcs(img: ims, out_dir: Optional[Path] = None):
     """
@@ -17,7 +18,12 @@ def write_swcs(img: ims, out_dir: Optional[Path] = None):
     if out_dir is None:
         out_dir = Path(img.filePathComplete).with_suffix("")
     out_dir.mkdir(exist_ok=True)
-    swcs = extract_swcs(img)
+    try:
+        swcs = extract_swcs(img)
+    except NoFilementError:
+        warn(f"{img.filePathComplete} contains no filements")
+        return
+
     for name, swc in swcs.items():
         if swc is None:
             # This swc failed to be created

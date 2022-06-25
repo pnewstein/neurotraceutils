@@ -12,6 +12,8 @@ from imaris_ims_file_reader.ims import ims
 class IllegalFilementError(Exception):
     pass
 
+class NoFilementError(Exception):
+    pass
 
 def extract_swcs(img: ims) -> dict[str, pd.DataFrame]:
     """
@@ -26,7 +28,10 @@ def extract_swcs(img: ims) -> dict[str, pd.DataFrame]:
     if scale[1] != scale[2]:
         # I'm not entirely sure which is y and which is x
         raise ValueError("Only voxels that are square in the xy dimention are currently supported")
-    filement_paths = [f"Scene8/Content/{key}" for key in img.hf["Scene8"]["Content"].keys() if "Filament" in key]
+    try:
+        filement_paths = [f"Scene8/Content/{key}" for key in img.hf["Scene8"]["Content"].keys() if "Filament" in key]
+    except KeyError as e:
+        raise NoFilementError from e
     names = [img.read_attribute(fp, "Name") for fp in filement_paths]
     out = {n: None for n in names}
     for name, filement_path in zip(names, filement_paths):
