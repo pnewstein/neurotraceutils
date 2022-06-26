@@ -4,7 +4,7 @@ commandline interface for the utility
 import sys
 from pathlib import Path
 
-from imaris_ims_file_reader.ims import ims
+from h5py import File
 import click
 
 from .output import write_swcs
@@ -26,6 +26,7 @@ def ims2swc(output_dir, ims_file):
     if output_dir is not None:
         output_dir=Path(output_dir)
     for file in ims_file:
-        write_swcs(ims(Path(file)), out_dir=output_dir)
+        with File(file) as h5f:
+            write_swcs(h5f, out_dir=output_dir)
 
 cli()

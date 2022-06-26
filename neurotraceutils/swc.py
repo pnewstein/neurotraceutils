@@ -7,7 +7,7 @@ from warnings import warn
 
 import numpy as np
 import pandas as pd
-from imaris_ims_file_reader.ims import ims
+import h5py
 
 class IllegalFilementError(Exception):
     pass
@@ -15,18 +15,18 @@ class IllegalFilementError(Exception):
 class NoFilementError(Exception):
     pass
 
-def extract_swcs(img: ims) -> dict[str, pd.DataFrame]:
+def extract_swcs(h5f: h5py.File) -> dict[str, pd.DataFrame]:
     """
     extracts all of the filiments in an image to a dataframe in the swc format
     outputs a dict where the keys are the names of the filiments and the values are the dataframes
     The index is the node number
     the columns of the dataframe are:
-        "Identifier", "PositionX", "PositionY", "PositionZ", "Radius", "Parent"
+         "PositionX", "PositionY", "PositionZ", "Radius", "Parent"
     """
     # get scale from metadata
     def byte_array_to_float(byte_array: np.ndarray) -> float:
         return float(byte_array.tobytes().decode("utf-8"))
-    metadata = img.hf["DataSetInfo/Image"]
+    metadata = h5f["DataSetInfo/Image"]
     scale: dict[str, float] = {}
     for i, dim in enumerate("XYZ"):
         scale[dim] = (
@@ -34,13 +34,13 @@ def extract_swcs(img: ims) -> dict[str, pd.DataFrame]:
             - byte_array_to_float(metadata.attrs[f"ExtMin{i}"])
         ) / byte_array_to_float(metadata.attrs[dim])
     try:
-        filement_paths = [f"Scene8/Content/{key}" for key in img.hf["Scene8"]["Content"].keys() if "Filament" in key]
+        filement_paths = [f"Scene8/Content/{key}" for key in h5f["Scene8/Content"].keys() if "Filament" in key]
     except KeyError as e:
         raise NoFilementError from e
-    names = [img.read_attribute(fp, "Name") for fp in filement_paths]
+    names = [h5f[fp].attrs["Name"].tobytes().decode("utf-8") for fp in filement_paths]
     out = {n: None for n in names}
     for name, filement_path in zip(names, filement_paths):
-        filement = img.hf[filement_path]
+        filement = h5f[filement_path]
         vertex = pd.DataFrame(np.array(filement["Vertex"]))
         edge = pd.DataFrame(np.array(filement["Edge"]))
         # switch to 1 based indexing

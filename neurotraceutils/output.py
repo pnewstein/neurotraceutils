@@ -7,21 +7,21 @@ from pathlib import Path
 from typing import Optional
 from warnings import warn
 
-from imaris_ims_file_reader.ims import ims
+from h5py import File
 
 from .swc import extract_swcs, NoFilementError
 
-def write_swcs(img: ims, out_dir: Optional[Path] = None):
+def write_swcs(h5f: File, out_dir: Optional[Path] = None):
     """
     Writes out the swc files to the output directory
     """
     if out_dir is None:
-        out_dir = Path(img.filePathComplete).with_suffix("")
+        out_dir = Path(h5f.filename).with_suffix("")
     out_dir.mkdir(exist_ok=True)
     try:
-        swcs = extract_swcs(img)
+        swcs = extract_swcs(h5f)
     except NoFilementError:
-        warn(f"{img.filePathComplete} contains no filements")
+        warn(f"{h5f.filePathComplete} contains no filements")
         return
 
     for name, swc_df in swcs.items():
