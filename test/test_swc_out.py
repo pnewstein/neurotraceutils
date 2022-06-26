@@ -40,10 +40,19 @@ def load_edge(num: int) -> tuple[int, pd.DataFrame, pd.DataFrame]:
 
 
 def test_parents1():
-
     nchildren, edge, read_parents = load_edge(1)
     calculated_parents = swc.assign_parents(nchildren, edge)
     assert all(r == c for r, c in zip(read_parents, calculated_parents))
+
+
+def test_full():
+    data_dir = HERE / "data"
+    swc_dict = swc.extract_swcs(ims(data_dir / "7.ims"))
+    swc_df = list(swc_dict.values())[0]
+    (data_dir / "_7.swc").with_suffix(".swc").write_text(
+        swc_df.to_csv(sep=" ", header=False, index=True), encoding="utf-8"
+    )
+    assert (data_dir / "7.swc").read_bytes() == (data_dir / "_7.swc").read_bytes()
 
 
 if __name__ == '__main__':

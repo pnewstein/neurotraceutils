@@ -24,10 +24,10 @@ def write_swcs(img: ims, out_dir: Optional[Path] = None):
         warn(f"{img.filePathComplete} contains no filements")
         return
 
-    for name, swc in swcs.items():
-        if swc is None:
+    for name, swc_df in swcs.items():
+        if swc_df is None:
             # This swc failed to be created
             continue
         (out_dir / name).with_suffix(".swc").write_text(
-            swc.to_csv(sep=" ", header=False, index=True), encoding="utf-8"
+            swc_df.to_csv(sep=" ", header=False, index=True), encoding="utf-8"
         )
