@@ -23,22 +23,16 @@ def extract_swcs(img: ims) -> dict[str, pd.DataFrame]:
     the columns of the dataframe are:
         "Identifier", "PositionX", "PositionY", "PositionZ", "Radius", "Parent"
     """
-    # get scale from zeiss metadata
-    z = img.hf["DataSetInfo/ZeissAttrs"]
+    # get scale from metadata
+    def byte_array_to_float(byte_array: np.ndarray) -> float:
+        return float(byte_array.tobytes().decode("utf-8"))
+    metadata = img.hf["DataSetInfo/Image"]
     scale: dict[str, float] = {}
-    for i, _ in enumerate("xyz"):
-        scale[
-            z.attrs[f"ImageDocument/Metadata/Scaling/Items/Distance{i}/Id"]
-            .tobytes()
-            .decode("utf-8")
-        ] = (
-            float(
-                z.attrs[f"ImageDocument/Metadata/Scaling/Items/Distance{i}/Value"]
-                .tobytes()
-                .decode("utf-8")
-            )
-            / 1e-6
-        )
+    for i, dim in enumerate("XYZ"):
+        scale[dim] = (
+            byte_array_to_float(metadata.attrs[f"ExtMax{i}"])
+            - byte_array_to_float(metadata.attrs[f"ExtMin{i}"])
+        ) / byte_array_to_float(metadata.attrs[dim])
     try:
         filement_paths = [f"Scene8/Content/{key}" for key in img.hf["Scene8"]["Content"].keys() if "Filament" in key]
     except KeyError as e:
