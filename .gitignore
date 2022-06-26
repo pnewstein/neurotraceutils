@@ -2,3 +2,4 @@ neurotraceutils.egg-info/*
 *__pycache__*
 *.dev*
 .vscode*
+test/data/*
