@@ -17,6 +17,7 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
+    package_data={"neurotraceutils": ["py.typed"]},
     python_requires='>=3.8',
     install_requires=["h5py", "pandas", "click", "numpy"]
 )
