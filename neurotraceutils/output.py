@@ -6,14 +6,17 @@ do the proper output
 from pathlib import Path
 from typing import Optional
 from warnings import warn
+import json
 
 from h5py import File
+import numpy as np
 
 from .swc import extract_swcs, NoFilementError
 
-def write_swcs(h5f: File, out_dir_parent: Optional[Path] = None):
+def write_swcs(h5f: File, out_dir_parent: Optional[Path] = None, header=True):
     """
     Writes out the swc files to the path out_dir_parent/<imaris file name>
+    header is whether to put a header with some information
     """
     if out_dir_parent is None:
         out_dir_parent = Path(h5f.filename).parent
@@ -30,6 +33,16 @@ def write_swcs(h5f: File, out_dir_parent: Optional[Path] = None):
         if swc_df is None:
             # This swc failed to be created
             continue
+        out_str = swc_df.to_csv(sep=" ", header=False, index=True)
+        if header:
+            out_str = "\n".join(
+                ["# neurotraceutils 0.1",
+                 f"# file_name {h5f.filename}",
+                 "# unit um",
+                 f"# isotime {np.array(h5f['DataSetInfo/Document'].attrs['CreationDate']).tobytes().decode('utf-8')}",
+                 out_str
+                 ]
+            )
         (out_dir / name).with_suffix(".swc").write_text(
-            swc_df.to_csv(sep=" ", header=False, index=True), encoding="utf-8"
+            out_str, encoding="utf-8"
         )
