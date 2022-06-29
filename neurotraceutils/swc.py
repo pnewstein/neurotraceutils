@@ -24,15 +24,15 @@ def extract_swcs(h5f: h5py.File) -> dict[str, pd.DataFrame]:
          "PositionX", "PositionY", "PositionZ", "Radius", "Parent"
     """
     # get scale from metadata
-    def byte_array_to_float(byte_array: np.ndarray) -> float:
-        return float(byte_array.tobytes().decode("utf-8"))
-    metadata = h5f["DataSetInfo/Image"]
-    scale: dict[str, float] = {}
-    for i, dim in enumerate("XYZ"):
-        scale[dim] = (
-            byte_array_to_float(metadata.attrs[f"ExtMax{i}"])
-            - byte_array_to_float(metadata.attrs[f"ExtMin{i}"])
-        ) / byte_array_to_float(metadata.attrs[dim])
+    # def byte_array_to_float(byte_array: np.ndarray) -> float:
+        # return float(byte_array.tobytes().decode("utf-8"))
+    # metadata = h5f["DataSetInfo/Image"]
+    # scale: dict[str, float] = {}
+    # for i, dim in enumerate("XYZ"):
+        # scale[dim] = (
+            # byte_array_to_float(metadata.attrs[f"ExtMax{i}"])
+            # - byte_array_to_float(metadata.attrs[f"ExtMin{i}"])
+        # ) / byte_array_to_float(metadata.attrs[dim])
     try:
         filement_paths = [f"Scene8/Content/{key}" for key in h5f["Scene8/Content"].keys() if "Filament" in key]
     except KeyError as e:
@@ -52,10 +52,10 @@ def extract_swcs(h5f: h5py.File) -> dict[str, pd.DataFrame]:
             warn(f'"{name}" failed with error message "{e}"')
             continue
         swc = vertex.copy()
-        # scale the swc
-        swc["PositionZ"] /= scale['Z']
-        swc["PositionY"] /= scale['Y']
-        swc["PositionX"] /= scale['X']
+        # # scale the swc
+        # swc["PositionZ"] /= scale['Z']
+        # swc["PositionY"] /= scale['Y']
+        # swc["PositionX"] /= scale['X']
         swc.insert(len(swc.columns), "Parent", parents)
         # I cant extract information about identifers
         swc.insert(0, "Identifier", np.zeros(len(swc.index), np.int8))
