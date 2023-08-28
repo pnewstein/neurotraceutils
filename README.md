@@ -41,5 +41,5 @@ use ```python -m neurotraceutils --help``` for detailed help
 The following code will convert the filaments within the imaris file ```image.ims``` to swc files. These
 files will be in the folder ```image```.
 ```
-python -m traceutils ims2swc image.ims
+python -m neurotraceutils ims2swc image.ims
 ```
