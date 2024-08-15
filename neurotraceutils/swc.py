@@ -15,6 +15,18 @@ class IllegalFilementError(Exception):
 class NoFilementError(Exception):
     pass
 
+
+def get_filement_paths_or_err(h5f: h5py.File):
+    """
+    returns the the h5 path to filements or reaises NoFilementError
+    """
+    try:
+        filement_paths = [f"Scene8/Content/{key}" for key in h5f["Scene8/Content"].keys() if "Filament" in key]
+    except KeyError as e:
+        raise NoFilementError from e
+    return filement_paths
+
+
 def extract_swcs(h5f: h5py.File) -> dict[str, pd.DataFrame]:
     """
     extracts all of the filiments in an image to a dataframe in the swc format
@@ -33,10 +45,7 @@ def extract_swcs(h5f: h5py.File) -> dict[str, pd.DataFrame]:
             # byte_array_to_float(metadata.attrs[f"ExtMax{i}"])
             # - byte_array_to_float(metadata.attrs[f"ExtMin{i}"])
         # ) / byte_array_to_float(metadata.attrs[dim])
-    try:
-        filement_paths = [f"Scene8/Content/{key}" for key in h5f["Scene8/Content"].keys() if "Filament" in key]
-    except KeyError as e:
-        raise NoFilementError from e
+    filement_paths = get_filement_paths_or_err(h5f)
     names = [h5f[fp].attrs["Name"].tobytes().decode("utf-8") for fp in filement_paths]
     out = {n: None for n in names}
     for name, filement_path in zip(names, filement_paths):
