@@ -24,11 +24,12 @@ def ims2swc(output_dir, ims_file):
     if output_dir is not None:
         output_dir=Path(output_dir)
     for file in ims_file:
+        click.echo(file, err=True)
         if Path(file).suffix != ".ims":
             click.echo(f"Error: {file} is not an imaris file", err=True)
             sys.exit(2)
         with File(file) as h5f:
-            write_swcs(h5f, out_dir_parent=output_dir)
+            write_swcs(h5f, out_dir_parent=output_dir / Path(file).parent)
 
 
 @cli.command(help="writes paths containing filements to stdout")
