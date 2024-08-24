@@ -34,12 +34,16 @@ def write_swcs(h5f: File, out_dir_parent: Optional[Path] = None, header=True):
             # This swc failed to be created
             continue
         out_str = swc_df.to_csv(sep=" ", header=False, index=True)
+        try:
+            time = np.array(h5f['DataSetInfo/Document'].attrs['CreationDate']).tobytes().decode('utf-8')
+        except KeyError:
+            time = "00000000T00:00"
         if header:
             out_str = "\n".join(
                 ["# neurotraceutils 0.1",
                  f"# file_name {h5f.filename}",
                  "# unit um",
-                 f"# isotime {np.array(h5f['DataSetInfo/Document'].attrs['CreationDate']).tobytes().decode('utf-8')}",
+                 f"# isotime {time}",
                  out_str
                  ]
             )
