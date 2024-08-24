@@ -47,11 +47,11 @@ def extract_swcs(h5f: h5py.File) -> dict[str, pd.DataFrame]:
         # ) / byte_array_to_float(metadata.attrs[dim])
     filement_paths = get_filement_paths_or_err(h5f)
     names = [h5f[fp].attrs["Name"].tobytes().decode("utf-8") for fp in filement_paths]
-    out = {n: None for n in names}
+    out: dict[str, pd.DataFrame | None] = {n: None for n in names}
     for name, filement_path in zip(names, filement_paths):
         filement = h5f[filement_path]
-        vertex = pd.DataFrame(np.array(filement["Vertex"]))
-        edge = pd.DataFrame(np.array(filement["Edge"]))
+        vertex: pd.DataFrame = pd.DataFrame(np.array(filement["Vertex"]))
+        edge: pd.DataFrame = pd.DataFrame(np.array(filement["Edge"]))
         # switch to 1 based indexing
         vertex.index = vertex.index + 1
         edge = edge+1
@@ -97,7 +97,7 @@ def assign_parents(nchildren: int, edge: pd.DataFrame) -> pd.Series:
     # traverse through the filement going down every branch
     parents = pd.Series(data=np.array(nchildren, np.int64) + INT_NAN, index=range(1, nchildren+1))
     """The output of this function, default is -2"""
-    visited = pd.Series(data=np.zeros(nchildren, np.bool8), index=range(1, nchildren+1))
+    visited = pd.Series(data=np.zeros(nchildren, np.bool), index=range(1, nchildren+1))
     """whether each node has been visited"""
     unexplored = [Branch(1, -1)]
     """The unexplored branches. will increase and decrease in size during the loop"""
@@ -132,7 +132,7 @@ def make_connectivity_matrix(nchildren: int, edge: pd.DataFrame) -> np.ndarray:
     uses 1 based indexing
     """
     # maybe this can be implemented in c
-    connectivity_matrix = np.zeros((nchildren+1, nchildren+1), np.bool8)
+    connectivity_matrix = np.zeros((nchildren+1, nchildren+1), np.bool)
     for _, (node1, node2) in edge.iterrows():
         connectivity_matrix[node1, node2] = True
         connectivity_matrix[node2, node1] = True
